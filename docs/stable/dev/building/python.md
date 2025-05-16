@@ -7,7 +7,14 @@ title: Python
 
 The DuckDB Python package lives in the main [DuckDB source on Github](https://github.com/duckdb/duckdb/) under the `/tools/pythonpkg/` folder. It uses [pybind11](https://pybind11.readthedocs.io/en/stable/) to create Python bindings with DuckDB.
 
-# Building From Source
+# Prerequisites
+
+For everything described on this page we make the following assumptions:
+
+1. You have a working copy of the duckdb source (including the git tags) and you run commands from the root of the source
+2. You have a suitable Python installation available in a dedicated virtual env
+
+## 1. DuckDB code
 
 Make sure you have checked out the [DuckDB source](https://github.com/duckdb/duckdb/) and that you are in its root. E.g.:
 
@@ -17,13 +24,27 @@ $ git clone https://github.com/duckdb/duckdb.git
 $ cd duckdb
 ```
 
-Below are a number of options to build the python library from source, with or without debug symbols, and with a default or custom set of [extensions]({% link docs/stable/extensions/overview.md %}). Make sure to check out the [DuckDB build documentation]({% link docs/stable/dev/building/overview.md %}) if you run into trouble building the DuckDB main library.
+If you've _forked_ DuckDB you may run into trouble when building the Python package when you haven't pulled in the tags.
 
-## Prerequisite: Create and activate a Python Virtual Env
+```bash
+# Check your remotes
+git remote -v
 
-Use your favorite way to create a Python virtual environment. A virtual environment isolates dependencies and, depending on the tooling you use, givs you control over which Python interpreter you use. This way you don't pollute your system-wide Python with the different packages you need for your projects.
+# If you don't see upstream	git@github.com:duckdb/duckdb.git, then add it
+git remote add upstream git@github.com:duckdb/duckdb.git
 
-We strongly recommend you use a tool like [uv](https://docs.astral.sh/uv/) (or Poetry, conda, etc) for helping you manage Python interpreter versions and virtual environments. The following code exmaples use Python3's built in `venv` module.
+# Now you can pull & push the tags
+git fetch --tags upstream
+git push --tags
+```
+
+## 2. Python Virtual Env
+
+For everything described here you will need a suitable Python installation. While you technically might be able to use your system Python, we **strongly** recommend you use a Python virtual environment. A virtual environment isolates dependencies and, depending on the tooling you use, gives you control over which Python interpreter you use. This way you don't pollute your system-wide Python with the different packages you need for your projects.
+
+While we use Python's built-in `venv` module in our examples below, and technically this might (or migth not!) work for you, we also **strongly** recommend use a tool like [astral uv](https://docs.astral.sh/uv/) (or Poetry, conda, etc) that allows you to manage _both_ Python interpreter versions and virtual environments.
+
+Create and activate a virtual env as follows:
 
 ```bash
 # Create a virtual environment in the .venv folder (in the duckdb source root)
@@ -33,11 +54,11 @@ $ python3 -m venv --prompt duckdb .venv
 $ source .venv/bin/activate
 ```
 
-Make sure that your virtual env has the pip module available:
+Make sure you have a modern enough version of pip available in your virtual env:
 
 ```bash
 # Print pip's help
-$ python3 -m pip --help
+$ python3 -m pip install --upgrade pip
 ```
 
 If that fails with `No module named pip` and you use `uv`, then run:
@@ -46,6 +67,10 @@ If that fails with `No module named pip` and you use `uv`, then run:
 # Install pip
 $ uv pip install pip
 ```
+
+# Building From Source
+
+Below are a number of options to build the python library from source, with or without debug symbols, and with a default or custom set of [extensions]({% link docs/stable/extensions/overview.md %}). Make sure to check out the [DuckDB build documentation]({% link docs/stable/dev/building/overview.md %}) if you run into trouble building the DuckDB main library.
 
 ## Default release, debug build or cloud storage
 
@@ -134,17 +159,87 @@ The following mechanisms add to the set of **_excluded_ extensions**:
 python3 -c "import duckdb; print(duckdb.sql('SELECT extension_name, installed, description FROM duckdb_extensions();'))"
 ```
 
-# Development Environment Tooling
+# Development Environment
+
+To set up the codebase for development you should run build duckdb as follows:
+
+```bash
+GEN=ninja BUILD_PYTHON=1 PYTHON_DEV=1 make debug
+```
+
+This will take care of the following:
+* Builds both the main duckdb library and the python library with debug symbols
+* Generates a `compile-commands.json` file that includes CPython and pybind11 headers so that intellisense and clang-tidy checks work in your IDE
+* Installs the required Python dependencies in your virtual env
+
+Once the build completes, do a sanity check to make sure everything works:
+
+```bash
+python3 -c "import duckdb; print(duckdb.sql('SELECT 42').fetchall())"
+```
 
 ## Debugging
 
-If you've compiled DuckDB and the Python client with debug symbols then you should be able to use `lldb` to debug the client code:
+The basic recipe is to start `lldb` with your virtual env's Python interpreter and your script, then set a breakpoint and run your script.
 
+For example, given a script `dataframe.df` with the following contents:
 
+```python
+import duckdb
+print(duckdb.sql("select * from range(1000)").df())
+```
 
-## IDE / CLion Setup
+The following should work:
 
--DCMAKE_PREFIX_PATH=/Users/evert/projects/duckdb/.venv;$CMAKE_PREFIX_PATH -DPython3_EXECUTABLE=/Users/evert/projects/duckdb/.venv/bin/python3 -DENABLE_PYTHON_ANALYSIS=ON -DBUILD_PYTHON=1
+```bash
+lldb -- .venv/bin/python3 my_script.py
+...
+# Set a breakpoint
+(lldb) br s -n duckdb::DuckDBPyRelation::FetchDF
+Breakpoint 1: no locations (pending).
+WARNING:  Unable to resolve breakpoint to any actual locations.
+# The above warning is harmless - the library hasn't been imported yet
+
+# Run the script
+(lldb) r
+...
+    frame #0: 0x000000013025833c duckdb.cpython-310-darwin.so`duckdb::DuckDBPyRelation::FetchDF(this=0x00006000012f8d20, date_as_object=false) at pyrelation.cpp:808:7
+   805 	}
+   806
+   807 	PandasDataFrame DuckDBPyRelation::FetchDF(bool date_as_object) {
+-> 808 		if (!result) {
+   809 			if (!rel) {
+   810 				return py::none();
+   811 			}
+Target 0: (python3) stopped.
+```
+
+## Debugging in an IDE / CLion
+
+After creating a debug build with `PYTHON_DEV` enabled, you should be able to get debugging going in an IDE that support `lldb`. Below are the instructions for CLion, but you should be able to get this going in e.g. VSCode as well.
+
+### Configure the CMake Debug Profile
+
+This is a prerequisite for debugging, and will enable Intellisense and clang-tidy by generating a `compile-commands.json` file so your IDE knows how to inspect the source code. It also makes sure your Python virtual env can be found by your IDE's cmake.
+
+Under `Settings | Build, Execution, Deployment | CMake` add the following CMake options:
+```console
+-DCMAKE_PREFIX_PATH=$CMakeProjectDir$/.venv;$CMAKE_PREFIX_PATH
+-DPython3_EXECUTABLE=$CMakeProjectDir$/.venv/bin/python3
+-DBUILD_PYTHON=1 -DPYTHON_DEV=1
+```
+
+### Create a run config for debugging
+
+Under Run -> Edit Configurations... create a new CMake Application. Use the following values:
+* Name: Python Debug
+* Target: `python_src` (it doesn't actually matter what you select here)
+* Program arguments: `$FilePath$`
+* Working directory: `$ProjectFileDir$`
+
+That should be enough: Save and close.
+
+Now you can set a breakpoint in a C++ file. You then open your Python script in your editor and use this config to start a debug session.
 
 ## Development and Stubs
 
@@ -160,26 +255,6 @@ python3 -m pytest tests/stubs
 ```
 
 If you add new methods to the DuckDB Python API, you'll need to manually add corresponding type hints to the stub files.
-
-## Clang-tidy and CMakeLists
-
-The pythonpkg does not use the CMakeLists for compilation, for that it uses pip and `package_build.py` mostly.
-But we still have CMakeLists in the pythonpkg, for tidy-check and intellisense purposes.
-For this reason it might not be instantly apparent that the CMakeLists are incorrectly set up, and will only result in a very confusing CI failure of TidyCheck.
-
-To prevent this, or to help you when you encounter said CI failure, here are a couple of things to note about the CMakeLists in here.
-
-The pythonpkg depends on `PythonLibs`, and `pybind11`, for some reason `PythonLibs` can not be found by clang-tidy when generating the `compile_commands.json` file
-So the reason for clang-tidy failing is likely that there is no entry for a file in the `compile_commands.json`, check the CMakeLists to see why cmake did not register it.
-
-Helpful information:
-`clang-tidy` is not a standard binary on MacOS, and can not be installed with brew directly (doing so will try to install clang-format, and they are not the same thing)
-Instead clang-tidy is part of `llvm`, so you'll need to install that (`brew install llvm`), after installing llvm you'll likely have to add the llvm binaries folder to your PATH variable to use clang-tidy
-For example:
-
-```bash
-export PATH="$PATH:/opt/homebrew/Cellar/llvm/15.0.2/bin"
-```
 
 ## What are py::objects and a py::handles??
 

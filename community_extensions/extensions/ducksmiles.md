@@ -8,7 +8,7 @@ excerpt: |
 extension:
   name: ducksmiles
   description: Cheminformatics and CPU numerical analytics for DuckDB - molecular formats, descriptors, fingerprints, similarity, regression, statistical inference, experimental design, time series, reliability and model evaluation from SQL
-  version: 0.6.4
+  version: 0.7.0
   language: C++
   build: cmake
   requires_toolchains: rust
@@ -20,7 +20,7 @@ extension:
 
 repo:
   github: nkwork9999/duckSMILES
-  ref: 2d4a5201c71c15828c7be8e2fc7e1d8b12a0cb85
+  ref: bc898ea130d08fc02136e226fb55e9887f6cd27c
 
 docs:
   hello_world: |
@@ -158,13 +158,24 @@ docs:
     saved prediction. JMP default Lasso, sandwich inference and full plot options
     remain explicitly incomplete in the source README.
 
+    **Materials and liquid viscosity (0.7.0):**
+    - Composition descriptors support positive fractional amounts and groups.
+    - ABX3 site radii and charges yield Goldschmidt and octahedral factors and
+      a charge-balance report; no phase-stability classification is inferred.
+    - Solvent/additive molecular features reuse the native RDKit-defined
+      descriptor implementations, with mole-fraction mixture feature moments.
+    - Temperature-dependent liquid viscosity evaluation, experimental log-OLS
+      fitting, and logarithmic mixing with optional binary Grunberg-Nissan G12.
+    - No new runtime dependencies. Units, assumptions and reference validation:
+      [MATERIALS.md](https://github.com/nkwork9999/duckSMILES/blob/bc898ea130d08fc02136e226fb55e9887f6cd27c/MATERIALS.md).
+
     **Architecture:** Rust (core logic, zero external chemistry crates) + C++ (DuckDB
     integration via FFI).
 
 extension_star_count: 4
 extension_star_count_pretty: 4
-extension_download_count: 863
-extension_download_count_pretty: 863
+extension_download_count: 870
+extension_download_count_pretty: 870
 image: '/images/community_extensions/social_preview/preview_community_extension_ducksmiles.png'
 layout: community_extension_doc
 ---
@@ -174,15 +185,15 @@ This table covers all DuckDB releases that have not reached [end-of-life](https:
 
 <div class="extension_compatibility_table"></div>
 
-| Platform | 1.4.4 | 1.4.5 | 1.5.5 | 1.5.6 | 2.0.0 |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| Linux AMD64 | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Linux ARM64 | ❌ | ❌ | ✅ | ✅ | ✅ |
-| macOS AMD64 | ❌ | ❌ | ✅ | ✅ | ✅ |
-| macOS ARM64 | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Windows AMD64 | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Windows ARM64 | ❌ | ❌ | ❌ | ❌ | ❌ |
-| WebAssembly | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Platform | 1.5.5 | 1.5.6 | 2.0.0 |
+| :--- | :---: | :---: | :---: |
+| Linux AMD64 | ✅ | ✅ | ✅ |
+| Linux ARM64 | ✅ | ✅ | ✅ |
+| macOS AMD64 | ✅ | ✅ | ✅ |
+| macOS ARM64 | ✅ | ✅ | ✅ |
+| Windows AMD64 | ✅ | ✅ | ✅ |
+| Windows ARM64 | ❌ | ❌ | ❌ |
+| WebAssembly | ✅ | ✅ | ✅ |
 
 ### Installing and Loading
 ```sql
